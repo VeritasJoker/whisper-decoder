@@ -14,7 +14,6 @@ def split_audio_word(data_dir, audioname, filename, saving_dir):
         df = load_transcript(os.path.join(data_dir, filename))
     else:
         return None
-    breakpoint()
     for i in df.index:
         if "label" in saving_dir:
             onset = df.onset_sec[i]
@@ -78,6 +77,9 @@ def main():
     label_ctx_split_folder = os.path.join(data_dir, "audio_segment_label_ctx")
     trans_split_folder = os.path.join(data_dir, "audio_segment_transcript")
 
+    df1 = load_transcript(os.path.join(data_dir, trans_name))
+    df2 = load_label(os.path.join(data_dir, label_name))
+    breakpoint()
     # split_audio_word(data_dir, audio_name, label_name, label_split_folder)
     split_audio_word(data_dir, audio_name, trans_name, trans_split_folder)
     # split_audio_word_context(data_dir, audio_name, label_name, label_ctx_split_folder)

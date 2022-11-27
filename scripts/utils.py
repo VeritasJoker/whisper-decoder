@@ -21,6 +21,8 @@ def load_transcript(filepath):
 
     df = df.dropna(subset=["onset", "offset"])
 
+    df = df.rename(columns={"onset": "brain_onset", "offset": "brain_offset"})
+
     return df
 
 
@@ -30,10 +32,14 @@ def load_label(filepath):
         full_labels = pickle.load(f)
         labels_df = pd.DataFrame(full_labels["labels"])
 
-    labels_df["onset_sec"] = (labels_df.onset + 3000) / 512
-    labels_df["offset_sec"] = (labels_df.offset + 3000) / 512
+    labels_df["audio_onset"] = (labels_df.onset + 3000) / 512
+    labels_df["audio_offset"] = (labels_df.offset + 3000) / 512
 
-    labels_df = labels_df.dropna(subset=["onset_sec", "offset_sec"])
+    labels_df = labels_df.dropna(subset=["audio_onset", "audio_offset"])
+
+    labels_df = labels_df.rename(
+        columns={"onset": "brain_onset", "offset": "brain_offset"}
+    )
 
     return labels_df
 
