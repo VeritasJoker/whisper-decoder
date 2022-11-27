@@ -4,7 +4,7 @@ import scipy.io.wavfile as wavfile
 from utils import load_transcript, load_label, load_audio
 
 
-def split_audio_word(data_dir, audioname, filename, saving_dir):
+def split_audio_word(data_dir, audioname, filename, saving_dir, save=False):
     # load audio
     fs, full_audio = load_audio(os.path.join(data_dir, audioname))
 
@@ -22,15 +22,20 @@ def split_audio_word(data_dir, audioname, filename, saving_dir):
             onset = df.audio_onset[i]
             offset = df.audio_offset[i]
 
-        # Split wav
-        chunk_data = full_audio[int(onset * fs) : int(offset * fs)]
-        chunk_name = os.path.join(saving_dir, f"segment_{i:04d}-{df.word[i]}.wav")
-        wavfile.write(chunk_name, fs, chunk_data)
+        if save:
+            # Split wav
+            chunk_data = full_audio[int(onset * fs) : int(offset * fs)]
+            chunk_name = os.path.join(
+                saving_dir, f"segment_{i:04d}-{df.word[i]}.wav"
+            )
+            wavfile.write(chunk_name, fs, chunk_data)
 
     return None
 
 
-def split_audio_word_context(data_dir, audioname, filename, saving_dir):
+def split_audio_word_context(
+    data_dir, audioname, filename, saving_dir, save=False
+):
     # load audio
     fs, full_audio = load_audio(os.path.join(data_dir, audioname))
 
@@ -44,21 +49,21 @@ def split_audio_word_context(data_dir, audioname, filename, saving_dir):
     df["ctx_idx"] = 0
     # sliding window of audio segements
     for i in df.index:
-        end_onset = df.offset_sec[i]
-        start_onset = np.max([df.iloc[0]["onset_sec"], (end_onset - 30)])
+        end_onset = df.audio_offset[i]
+        start_onset = np.max([df.iloc[0]["audio_onset"], (end_onset - 30)])
 
-        # Extract audio segment and save
-        chunk_data = full_audio[int(start_onset * fs) : int(end_onset * fs)]
-        chunk_name = os.path.join(saving_dir, f"segment_{i:04d}-{df.word[i]}.wav")
-        wavfile.write(chunk_name, fs, chunk_data)
+        if save:
+            # Extract audio segment and save
+            chunk_data = full_audio[int(start_onset * fs) : int(end_onset * fs)]
+            chunk_name = os.path.join(
+                saving_dir, f"segment_{i:04d}-{df.word[i]}.wav"
+            )
+            wavfile.write(chunk_name, fs, chunk_data)
 
         # Compute earliest index in the context
-        df.loc[i, "ctx_idx"] = df.onset_sec.ge(start_onset).idxmax()
+        df.loc[i, "ctx_idx"] = df.audio_onset.ge(start_onset).idxmax()
 
-        if end_onset >= 40:
-            breakpoint()
-
-    return None
+    return df
 
 
 def main():
@@ -73,16 +78,17 @@ def main():
     audio_name = "Podcast.wav"
 
     data_dir = os.path.join("data", project)
-    label_split_folder = os.path.join(data_dir, "audio_segment_label")
-    label_ctx_split_folder = os.path.join(data_dir, "audio_segment_label_ctx")
-    trans_split_folder = os.path.join(data_dir, "audio_segment_transcript")
+    result_dir = os.path.join("seg-data", project, "audio")
+    label_split_folder = os.path.join(result_dir, "audio_segment_label")
+    label_ctx_split_folder = os.path.join(result_dir, "audio_segment_label_ctx")
+    # trans_split_folder = os.path.join(data_dir, "audio_segment_transcript")
 
-    df1 = load_transcript(os.path.join(data_dir, trans_name))
-    df2 = load_label(os.path.join(data_dir, label_name))
-    breakpoint()
-    # split_audio_word(data_dir, audio_name, label_name, label_split_folder)
-    split_audio_word(data_dir, audio_name, trans_name, trans_split_folder)
-    # split_audio_word_context(data_dir, audio_name, label_name, label_ctx_split_folder)
+    split_audio_word(
+        data_dir, audio_name, label_name, label_split_folder, False
+    )
+    split_audio_word_context(
+        data_dir, audio_name, label_name, label_ctx_split_folder, False
+    )
 
     return None
 
