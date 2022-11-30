@@ -49,9 +49,11 @@ def get_elec_data(args):
         )
 
         elec_file = os.path.join(args.ecog_path, filename)
-
-        e = loadmat(elec_file)["p1st"].squeeze().astype(np.float32)
-        ecogs.append(e)
+        try:
+            e = loadmat(elec_file)["p1st"].squeeze().astype(np.float32)
+            ecogs.append(e)
+        except:
+            print(f"No ecog data for elec {i}")
     ecogs = np.asarray(ecogs).T
 
     return ecogs
