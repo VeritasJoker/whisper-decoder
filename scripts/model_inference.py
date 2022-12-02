@@ -32,10 +32,7 @@ def load_whisper_model(model_size):
     return model, processor, tokenizer
 
 
-def transcribe_audio(filename, model_size):
-
-    # load model
-    model, processor, _ = load_whisper_model(model_size)
+def transcribe_audio(model, processor, filename):
 
     # load and prepare audio
     audio = whisper.load_audio(filename)
@@ -50,13 +47,14 @@ def transcribe_audio(filename, model_size):
     return transcription
 
 
-def transcribe_spec(spec, model_size):
+def transcribe_spec(model, processor, spec):
 
-    # load model
-    model, processor, _ = load_whisper_model(model_size)
+    # prepare spec
+    spec = torch.from_numpy(spec)
+    input_features = spec.unsqueeze(dim=0)
 
     # model generate (greedy decoding)
-    output = model.generate(inputs=spec, max_new_tokens=448)
+    output = model.generate(inputs=input_features, max_new_tokens=448)
     transcription = processor.batch_decode(output, skip_special_tokens=True)[0]
 
     return transcription
