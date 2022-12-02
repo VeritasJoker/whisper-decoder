@@ -4,7 +4,11 @@ import pickle
 import pandas as pd
 
 from utils import load_pickle
-from model_inference import transcribe_spec, load_whisper_model
+from model_inference import (
+    transcribe_spec,
+    load_whisper_model,
+    load_whisper_model_by_path,
+)
 
 
 def main():
@@ -18,11 +22,16 @@ def main():
     # ecog_all = load_pickle(os.path.join(data_dir, "717_ecog_all_spec.pkl"))
     audio = load_pickle(os.path.join(data_dir, "audio_spec.pkl"))
 
-    model, processor, _ = load_whisper_model("tiny")
-    word = transcribe_spec(model, processor, audio["audio_specs"][1])
-
     breakpoint()
 
+    model, processor, _ = load_whisper_model("tiny")
+    # model.save_pretrained("./whisper-decoder")
+
+    breakpoint()
+    model2 = load_whisper_model_by_path("./whisper-decoder")
+
+    word = transcribe_spec(model2, processor, audio["audio_specs"][1])
+    print(word)
     # df = pd.DataFrame.from_dict(datum)
     return None
 

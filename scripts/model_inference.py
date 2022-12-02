@@ -32,6 +32,19 @@ def load_whisper_model(model_size):
     return model, processor, tokenizer
 
 
+def load_whisper_model_by_path(model_path):
+
+    model = WhisperForConditionalGeneration.from_pretrained(
+        model_path,
+        output_hidden_states=True,
+        return_dict=True,
+    )
+    # processor = WhisperProcessor.from_pretrained(model_path)
+    # tokenizer = WhisperTokenizer.from_pretrained(model_path)
+
+    return model
+
+
 def transcribe_audio(model, processor, filename):
 
     # load and prepare audio
@@ -94,6 +107,8 @@ def main():
     project = "podcast"
     data_dir = os.path.join("data", project)
     sample = "podcast_segment_5099-characteristic.wav"
+
+    breakpoint()
 
     result = transcribe_audio(os.path.join(data_dir, sample), "tiny")
     print(result)
