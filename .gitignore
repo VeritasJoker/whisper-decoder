@@ -1,4 +1,6 @@
+logs
 data
+results
 seg-data
 spec-data
 __pycache__

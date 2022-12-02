@@ -11,9 +11,6 @@ USR := $(shell whoami | head -c 2)
 PRJCT_ID := podcast
 # {podcast | tfs}
 
-################ tfs subject ################
-# SID := 625
-
 ############## podcast subject ##############
 SID := 717
 DATUM := 777_full_labels.pkl
@@ -28,15 +25,15 @@ SAMPLE_RATE := 16000
 CHUNK_LEN := 30
 N_FFT := 400
 N_MEL := 80
-HOP_LEN := 10
-# {160 for audio, 10 for ecog for now}
+AUDIO_HOP_LEN := 160
+ECOG_HOP_LEN := 10
 
 
 # Choose the command to run: python runs locally, echo is for debugging, sbatch
 # is for running on SLURM
 CMD := echo
-CMD := sbatch submit.sh
 CMD := python
+CMD := sbatch submit.sh
 
 
 ##########################################################
@@ -56,7 +53,7 @@ prepare-audio:
 		--seg-type $(SEG_TYPE) \
 		--sample-rate $(SAMPLE_RATE) \
 		--chunk-len $(CHUNK_LEN) \
-		--hop-len $(HOP_LEN) \
+		--hop-len $(AUDIO_HOP_LEN) \
 		--n-fft $(N_FFT) \
 		--n-mel $(N_MEL) \
 		--save-type audio_spec;\
@@ -71,7 +68,7 @@ segment-audio:
 		--seg-type $(SEG_TYPE) \
 		--sample-rate $(SAMPLE_RATE) \
 		--chunk-len $(CHUNK_LEN) \
-		--hop-len $(HOP_LEN) \
+		--hop-len $(AUDIO_HOP_LEN) \
 		--n-fft $(N_FFT) \
 		--n-mel $(N_MEL) \
 		--save-type audio;\
@@ -86,7 +83,7 @@ spec-audio:
 		--seg-type $(SEG_TYPE) \
 		--sample-rate $(SAMPLE_RATE) \
 		--chunk-len $(CHUNK_LEN) \
-		--hop-len $(HOP_LEN) \
+		--hop-len $(AUDIO_HOP_LEN) \
 		--n-fft $(N_FFT) \
 		--n-mel $(N_MEL) \
 		--save-type spec;\
@@ -99,7 +96,7 @@ spec-audio:
 %-ecog: E_LIST := $(shell seq 1 255) # 717
 
 # electrode type (ifg, stg, both, all)
-%-ecog: E_TYPE := ifg
+%-ecog: E_TYPE := all
 
 # ecog paramters
 %-ecog: ONSET_SHIFT := 300
@@ -114,7 +111,7 @@ prepare-ecog:
 		--elecs $(E_LIST) \
 		--elec-type $(E_TYPE) \
 		--seg-type $(SEG_TYPE) \
-		--hop-len $(HOP_LEN) \
+		--hop-len $(ECOG_HOP_LEN) \
 		--n-fft $(N_FFT) \
 		--n-mel $(N_MEL) \
 		--onset-shift $(ONSET_SHIFT) \
@@ -130,7 +127,7 @@ segment-ecog:
 		--elecs $(E_LIST) \
 		--elec-type $(E_TYPE) \
 		--seg-type $(SEG_TYPE) \
-		--hop-len $(HOP_LEN) \
+		--hop-len $(ECOG_HOP_LEN) \
 		--n-fft $(N_FFT) \
 		--n-mel $(N_MEL) \
 		--onset-shift $(ONSET_SHIFT) \
@@ -146,9 +143,12 @@ spec-ecog:
 		--elecs $(E_LIST) \
 		--elec-type $(E_TYPE) \
 		--seg-type $(SEG_TYPE) \
-		--hop-len $(HOP_LEN) \
+		--hop-len $(ECOG_HOP_LEN) \
 		--n-fft $(N_FFT) \
 		--n-mel $(N_MEL) \
 		--onset-shift $(ONSET_SHIFT) \
 		--window-size $(WINDOW_SIZE) \
 		--save-type spec;\
+
+run-slurm:
+	$(CMD) scripts/model_test.py

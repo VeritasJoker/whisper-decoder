@@ -4,6 +4,7 @@ import pickle
 import pandas as pd
 
 from utils import load_pickle
+from model_inference import transcribe_spec
 
 
 def main():
