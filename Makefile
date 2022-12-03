@@ -151,4 +151,4 @@ spec-ecog:
 		--save-type spec;\
 
 run-slurm:
-	$(CMD) scripts/model_test.py
+	$(CMD) scripts/model_train.py

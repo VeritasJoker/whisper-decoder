@@ -61,8 +61,8 @@ def compute_metrics(pred):
     label_ids[label_ids == -100] = tokenizer.pad_token_id
 
     # we do not want to group tokens when computing the metrics
-    pred_str = tokenizer.batch_decode(pred_ids, skip_special_tokens=True)
-    label_str = tokenizer.batch_decode(label_ids, skip_special_tokens=True)
+    pred_str = tokenizer.batch_decode(pred_ids, skip_special_tokens=True).lower()
+    label_str = tokenizer.batch_decode(label_ids, skip_special_tokens=True).lower()
 
     wer = 100 * metric.compute(predictions=pred_str, references=label_str)
 
@@ -84,7 +84,7 @@ def main():
 
     model.config.forced_decoder_ids = None  # not sure if we need these
     model.config.suppress_tokens = []
-    metric = evaluate.load("wer")
+    metric = evaluate.load("./metrics/wer")
 
     project = "podcast"
     data_dir = os.path.join("seg-data", project, "word")
@@ -120,15 +120,15 @@ def main():
         gradient_accumulation_steps=1,
         learning_rate=1e-5,
         warmup_steps=500,
-        max_steps=4000,
+        max_steps=100,
         gradient_checkpointing=True,
         fp16=True,
         evaluation_strategy="steps",
         per_device_eval_batch_size=8,
         predict_with_generate=True,
         generation_max_length=225,
-        save_steps=1000,
-        eval_steps=100,
+        save_steps=1,
+        eval_steps=5,
         logging_steps=25,
         report_to=["tensorboard"],
         load_best_model_at_end=True,
@@ -148,12 +148,6 @@ def main():
     )
 
     trainer.train()
-
-    # train_ecog = dict(key =  1 for key in ecog_ifg["keys"])
-
-    pred = ["characteristic"]
-    ref = [" Characteristic"]
-    100 * metric.compute(predictions=pred, references=ref)
 
     return None
 

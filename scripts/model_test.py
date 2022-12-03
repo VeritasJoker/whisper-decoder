@@ -9,6 +9,7 @@ from model_inference import (
     load_whisper_model,
     load_whisper_model_by_path,
 )
+import evaluate
 
 
 def main():
@@ -20,18 +21,17 @@ def main():
     # ecog_stg = load_pickle(os.path.join(data_dir, "717_ecog_stg_spec.pkl"))
     # ecog_both = load_pickle(os.path.join(data_dir, "717_ecog_both_spec.pkl"))
     # ecog_all = load_pickle(os.path.join(data_dir, "717_ecog_all_spec.pkl"))
-    audio = load_pickle(os.path.join(data_dir, "audio_spec.pkl"))
+    # audio = load_pickle(os.path.join(data_dir, "audio_spec.pkl"))
 
-    breakpoint()
-
-    model, processor, _ = load_whisper_model("tiny")
+    # model, processor, _ = load_whisper_model("tiny")
     # model.save_pretrained("./whisper-decoder")
 
+    # metric = evaluate.load("wer", download_mode=False, cache_dir="")
     breakpoint()
     model2 = load_whisper_model_by_path("./whisper-decoder")
 
-    word = transcribe_spec(model2, processor, audio["audio_specs"][1])
-    print(word)
+    # word = transcribe_spec(model2, processor, audio["audio_specs"][1])
+    # print(word)
     # df = pd.DataFrame.from_dict(datum)
     return None
 
