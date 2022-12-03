@@ -23,7 +23,8 @@ def main():
     # ecog_all = load_pickle(os.path.join(data_dir, "717_ecog_all_spec.pkl"))
     # audio = load_pickle(os.path.join(data_dir, "audio_spec.pkl"))
 
-    # model, processor, _ = load_whisper_model("tiny")
+    model, processor, _ = load_whisper_model("tiny")
+    breakpoint()
     # model.save_pretrained("./whisper-decoder")
 
     # metric = evaluate.load("wer", download_mode=False, cache_dir="")

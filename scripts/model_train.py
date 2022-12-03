@@ -2,6 +2,7 @@ import os
 from scipy.io import loadmat
 import pickle
 import pandas as pd
+import numpy as np
 import torch
 import evaluate
 from transformers import Seq2SeqTrainer, Seq2SeqTrainingArguments
@@ -27,7 +28,7 @@ class DataCollatorSpeechSeq2SeqWithPadding:
         # split inputs and labels since they have to be of different lengths and need different padding methods
         # first treat the audio inputs by simply returning torch tensors
         input_features = [
-            {"input_features": feature["ecog_specs"]} for feature in features
+            {"input_features": feature["input_features"]} for feature in features
         ]
         batch = self.processor.feature_extractor.pad(
             input_features, return_tensors="pt"
@@ -61,8 +62,8 @@ def compute_metrics(pred):
     label_ids[label_ids == -100] = tokenizer.pad_token_id
 
     # we do not want to group tokens when computing the metrics
-    pred_str = tokenizer.batch_decode(pred_ids, skip_special_tokens=True).lower()
-    label_str = tokenizer.batch_decode(label_ids, skip_special_tokens=True).lower()
+    pred_str = tokenizer.batch_decode(pred_ids, skip_special_tokens=True)
+    label_str = tokenizer.batch_decode(label_ids, skip_special_tokens=True)
 
     wer = 100 * metric.compute(predictions=pred_str, references=label_str)
 
@@ -89,21 +90,27 @@ def main():
     project = "podcast"
     data_dir = os.path.join("seg-data", project, "word")
 
-    ecog_ifg = load_pickle(os.path.join(data_dir, "717_ecog_ifg_spec.pkl"))
     # ecog_stg = load_pickle(os.path.join(data_dir, "717_ecog_stg_spec.pkl"))
     # ecog_both = load_pickle(os.path.join(data_dir, "717_ecog_both_spec.pkl"))
     # ecog_all = load_pickle(os.path.join(data_dir, "717_ecog_all_spec.pkl"))
     # audio = load_pickle(os.path.join(data_dir, "audio_spec.pkl"))
+    ecog_ifg = load_pickle(os.path.join(data_dir, "717_ecog_ifg_spec.pkl"))
 
     data_all = DatasetDict()
-    train_size = 4800
+
+    # train_size = 4800
+    # ecog_data = Dataset.from_dict(ecog_ifg)
+    # ecog_data = ecog_data.filter(lambda example, idx: idx % 20 == 0, with_indices=True)
+    # dataset.train_test_split(test_size=0.1)
+
+    # breakpoint()
 
     train_ecog_ifg = {}
     test_ecog_ifg = {}
 
     for key in ecog_ifg.keys():
-        train_ecog_ifg[key] = ecog_ifg[key][0:train_size]
-        test_ecog_ifg[key] = ecog_ifg[key][train_size:]
+        train_ecog_ifg[key] = ecog_ifg[key][0:20]
+        test_ecog_ifg[key] = ecog_ifg[key][100:120]
 
     data_all["train"] = Dataset.from_dict(train_ecog_ifg)
     data_all["test"] = Dataset.from_dict(test_ecog_ifg)
@@ -111,26 +118,25 @@ def main():
     data_all = data_all.map(
         prepare_dataset, remove_columns=data_all.column_names["train"], num_proc=4
     )
-
+    breakpoint()
     data_collator = DataCollatorSpeechSeq2SeqWithPadding(processor=processor)
 
     training_args = Seq2SeqTrainingArguments(
-        output_dir="./whisper-tiny-717-ifg-raw",
+        output_dir="./whisper-tiny-717-ifg-raw3",
         per_device_train_batch_size=16,
         gradient_accumulation_steps=1,
         learning_rate=1e-5,
-        warmup_steps=500,
-        max_steps=4000,
+        warmup_steps=1,
+        max_steps=5,
         gradient_checkpointing=True,
-        fp16=True,
+        fp16=False,
         evaluation_strategy="steps",
         per_device_eval_batch_size=8,
         predict_with_generate=True,
         generation_max_length=225,
-        save_steps=1000,
-        eval_steps=1000,
-        logging_steps=25,
-        report_to=["tensorboard"],
+        save_steps=5,
+        eval_steps=5,
+        logging_steps=5,
         load_best_model_at_end=True,
         metric_for_best_model="wer",
         greater_is_better=False,
@@ -147,6 +153,10 @@ def main():
         tokenizer=processor.feature_extractor,
     )
 
+    print("Saving processor")
+    processor.save_pretrained(training_args.output_dir)
+
+    print("Start training")
     trainer.train()
 
     return None

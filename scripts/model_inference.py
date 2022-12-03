@@ -108,6 +108,8 @@ def main():
     data_dir = os.path.join("data", project)
     sample = "podcast_segment_5099-characteristic.wav"
 
+    model, processor, _ = load_whisper_model("tiny")
+
     breakpoint()
 
     result = transcribe_audio(os.path.join(data_dir, sample), "tiny")
