@@ -4,3 +4,4 @@ results
 seg-data
 spec-data
 __pycache__
+whisper-*
