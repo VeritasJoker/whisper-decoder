@@ -20,6 +20,7 @@ def load_whisper_model(model_size):
     model_fullname = f"openai/whisper-{model_size}.en"
     if model_size == "large":
         model_fullname = f"openai/whisper-large"
+    print(f"Loading {model_fullname}")
 
     model = WhisperForConditionalGeneration.from_pretrained(
         model_fullname,
@@ -32,17 +33,19 @@ def load_whisper_model(model_size):
     return model, processor, tokenizer
 
 
-def load_whisper_model_by_path(model_path):
+def load_whisper_model_by_path(model_path, checkpoint):
 
+    processor = WhisperProcessor.from_pretrained(model_path)
+    tokenizer = WhisperTokenizer.from_pretrained(model_path)
+
+    model_path = os.path.join(model_path, f"checkpoint-{checkpoint}")
     model = WhisperForConditionalGeneration.from_pretrained(
         model_path,
         output_hidden_states=True,
         return_dict=True,
     )
-    # processor = WhisperProcessor.from_pretrained(model_path)
-    # tokenizer = WhisperTokenizer.from_pretrained(model_path)
 
-    return model
+    return model, processor, tokenizer
 
 
 def transcribe_audio(model, processor, filename):
@@ -102,17 +105,14 @@ def main():
 
     project = "podcast"
     data_dir = os.path.join("seg-data", project, "word", "audio_segment")
-    sample = "segment_5097-uniquely.wav"
+    sample = "segment_5096-a.wav"
 
-    project = "podcast"
-    data_dir = os.path.join("data", project)
-    sample = "podcast_segment_5099-characteristic.wav"
+    # project = "podcast"
+    # data_dir = os.path.join("data", project)
+    # sample = "podcast_segment_5099-characteristic.wav"
 
     model, processor, _ = load_whisper_model("tiny")
-
-    breakpoint()
-
-    result = transcribe_audio(os.path.join(data_dir, sample), "tiny")
+    result = transcribe_audio(model, processor, os.path.join(data_dir, sample))
     print(result)
 
     return None

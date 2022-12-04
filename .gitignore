@@ -1,6 +1,7 @@
 logs
 data
 results
+models
 seg-data
 spec-data
 __pycache__

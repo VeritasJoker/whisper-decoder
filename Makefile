@@ -35,7 +35,6 @@ CMD := echo
 CMD := python
 CMD := sbatch submit.sh
 
-
 ##########################################################
 ######################### Audio ##########################
 ##########################################################
@@ -150,5 +149,82 @@ spec-ecog:
 		--window-size $(WINDOW_SIZE) \
 		--save-type spec;\
 
-run-slurm:
-	$(CMD) scripts/model_train.py
+
+##########################################################
+######################### MODEL ##########################
+##########################################################
+
+# electrode list
+%-model: MODEL_SIZE := tiny
+%-model: MODEL_SIZE := tiny base small medium
+
+# electrode type {ifg, stg, both, all}
+%-model: ELEC_TYPE := ifg
+
+# ecog type {raw, gan}
+%-model: ECOG_TYPE := raw
+
+# data split (test percentage)
+%-model: DATA_SPLIT = 0.05
+
+
+train-model:
+	$(CMD) scripts/model_train.py \
+		--project-id $(PRJCT_ID) \
+		--sid $(SID) \
+		--model-size $(MODEL_SIZE) \
+		--data-split $(DATA_SPLIT) \
+		--elec-type $(ELEC_TYPE) \
+		--ecog-type $(ECOG_TYPE) \
+		--seg-type $(SEG_TYPE) \
+		--saving-dir whisper-$(MODEL_SIZE)-$(SID)-$(ELEC_TYPE)-$(ECOG_TYPE)-$(SEG_TYPE)-test$(DATA_SPLIT); \
+
+
+audio-model:
+	$(CMD) scripts/model_audio.py \
+		--project-id $(PRJCT_ID) \
+		--sid $(SID) \
+		--seg-type $(SEG_TYPE) \
+
+
+ecog-model:
+	$(CMD) scripts/model_ecog.py \
+		--project-id $(PRJCT_ID) \
+		--sid $(SID) \
+		--elec-type $(ELEC_TYPE) \
+		--ecog-type $(ECOG_TYPE) \
+		--seg-type $(SEG_TYPE) \
+
+
+test-model:
+	python scripts/model_test.py \
+		--project-id $(PRJCT_ID) \
+		--sid $(SID) \
+		--seg-type $(SEG_TYPE) \
+		--model-size $(MODEL_SIZE) \
+		--data-split $(DATA_SPLIT) \
+		--elec-type $(ELEC_TYPE) \
+		--ecog-type $(ECOG_TYPE) \
+		--saving-dir whisper-$(MODEL_SIZE)-$(SID)-$(ELEC_TYPE)-$(ECOG_TYPE)-$(SEG_TYPE)-test$(DATA_SPLIT); \
+
+
+pred-model:
+	python scripts/model_pred.py \
+		--project-id $(PRJCT_ID) \
+		--sid $(SID) \
+		--seg-type $(SEG_TYPE) \
+		--model-size $(MODEL_SIZE) \
+		--eval-file audio_spec.pkl; \
+
+
+pred-all-model:
+	for size in $(MODEL_SIZE); do\
+		$(CMD) scripts/model_pred.py \
+			--project-id $(PRJCT_ID) \
+			--sid $(SID) \
+			--seg-type $(SEG_TYPE) \
+			--model-size $$size \
+			--eval-file 717_ecog_both_spec.pkl; \
+	done; \
+
+

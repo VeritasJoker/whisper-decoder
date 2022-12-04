@@ -8,14 +8,22 @@ import evaluate
 from transformers import Seq2SeqTrainer, Seq2SeqTrainingArguments
 from dataclasses import dataclass
 from typing import Any, Dict, List, Union
-from datasets import Dataset, DatasetDict
+from datasets import Dataset
 
 from utils import load_pickle
-from model_inference import (
-    transcribe_spec,
-    load_whisper_model,
-    load_whisper_model_by_path,
-)
+from model_inference import load_whisper_model
+from model_config import parse_arguments, write_model_config
+
+
+def model_tokenize(labels, tokenizer):
+
+    labels = pd.DataFrame(labels)
+    labels = labels.rename(columns={0:"label"})
+    # labels["tokens"] = labels.label.apply(tokenizer.tokenize)
+    labels["token_ids"] = labels.label.apply(tokenizer.encode)
+
+    return labels.token_ids.tolist()
+
 
 
 @dataclass
@@ -65,78 +73,42 @@ def compute_metrics(pred):
     pred_str = tokenizer.batch_decode(pred_ids, skip_special_tokens=True)
     label_str = tokenizer.batch_decode(label_ids, skip_special_tokens=True)
 
+    pred_str = [label.lower() for label in pred_str]
+    label_str = [label.lower() for label in label_str]
+
     wer = 100 * metric.compute(predictions=pred_str, references=label_str)
 
     return {"wer": wer}
 
 
-def prepare_dataset(batch):
+# def prepare_dataset(batch):
 
-    batch["input_features"] = batch["ecog_specs"]
-    batch["labels"] = tokenizer(batch["label"]).input_ids
+#     batch["input_features"] = batch["ecog_specs"]
+#     batch["labels"] = tokenizer(batch["label"]).input_ids
 
-    return batch
+#     return batch
 
 
-def main():
+def get_trainer(args, data_all):
 
-    global model, processor, tokenizer, metric  # global variables
-    model, processor, tokenizer = load_whisper_model("tiny")
-
-    model.config.forced_decoder_ids = None  # not sure if we need these
-    model.config.suppress_tokens = []
-    metric = evaluate.load("./metrics/wer")
-
-    project = "podcast"
-    data_dir = os.path.join("seg-data", project, "word")
-
-    # ecog_stg = load_pickle(os.path.join(data_dir, "717_ecog_stg_spec.pkl"))
-    # ecog_both = load_pickle(os.path.join(data_dir, "717_ecog_both_spec.pkl"))
-    # ecog_all = load_pickle(os.path.join(data_dir, "717_ecog_all_spec.pkl"))
-    # audio = load_pickle(os.path.join(data_dir, "audio_spec.pkl"))
-    ecog_ifg = load_pickle(os.path.join(data_dir, "717_ecog_ifg_spec.pkl"))
-
-    data_all = DatasetDict()
-
-    # train_size = 4800
-    # ecog_data = Dataset.from_dict(ecog_ifg)
-    # ecog_data = ecog_data.filter(lambda example, idx: idx % 20 == 0, with_indices=True)
-    # dataset.train_test_split(test_size=0.1)
-
-    # breakpoint()
-
-    train_ecog_ifg = {}
-    test_ecog_ifg = {}
-
-    for key in ecog_ifg.keys():
-        train_ecog_ifg[key] = ecog_ifg[key][0:20]
-        test_ecog_ifg[key] = ecog_ifg[key][100:120]
-
-    data_all["train"] = Dataset.from_dict(train_ecog_ifg)
-    data_all["test"] = Dataset.from_dict(test_ecog_ifg)
-
-    data_all = data_all.map(
-        prepare_dataset, remove_columns=data_all.column_names["train"], num_proc=4
-    )
-    breakpoint()
     data_collator = DataCollatorSpeechSeq2SeqWithPadding(processor=processor)
 
     training_args = Seq2SeqTrainingArguments(
-        output_dir="./whisper-tiny-717-ifg-raw3",
+        output_dir=f"./models/{args.saving_dir}",
         per_device_train_batch_size=16,
         gradient_accumulation_steps=1,
         learning_rate=1e-5,
-        warmup_steps=1,
-        max_steps=5,
+        warmup_steps=500,
+        max_steps=5000,
         gradient_checkpointing=True,
         fp16=False,
         evaluation_strategy="steps",
         per_device_eval_batch_size=8,
         predict_with_generate=True,
         generation_max_length=225,
-        save_steps=5,
-        eval_steps=5,
-        logging_steps=5,
+        save_steps=1000,
+        eval_steps=1000,
+        logging_steps=25,
         load_best_model_at_end=True,
         metric_for_best_model="wer",
         greater_is_better=False,
@@ -150,8 +122,40 @@ def main():
         eval_dataset=data_all["test"],
         data_collator=data_collator,
         compute_metrics=compute_metrics,
-        tokenizer=processor.feature_extractor,
+        tokenizer=processor.tokenizer,
     )
+
+    return trainer, training_args
+
+
+
+
+def main():
+
+    # Read command line arguments
+    args = parse_arguments()
+
+    write_model_config(vars(args))
+
+    global model, processor, tokenizer, metric  # global variables
+    model, processor, tokenizer = load_whisper_model(args.model_size)
+
+    # model.config.forced_decoder_ids = None  # not sure if we need these
+    # model.config.suppress_tokens = []
+    metric = evaluate.load("./metrics/wer")
+
+    ecog_pkl = load_pickle(args.datafile)
+    labels = model_tokenize(ecog_pkl["label"])
+    ecog_data = {"input_features":ecog_pkl["ecog_specs"],"labels":labels}
+    ecog_data = Dataset.from_dict(ecog_pkl)
+    
+    # Split train / test
+    # 8/2 split: train_size = 4029, test_size = 1008
+    # 9/1 split: train_size = 4533, test_size = 504
+    # 9.5/0.5 split: train_size = 4785, test_size = 252
+    data_all = ecog_data.train_test_split(test_size=args.data_split, shuffle=False)
+
+    trainer, training_args = get_trainer(args, data_all)
 
     print("Saving processor")
     processor.save_pretrained(training_args.output_dir)
