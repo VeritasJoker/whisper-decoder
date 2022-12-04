@@ -224,7 +224,7 @@ pred-all-model:
 			--sid $(SID) \
 			--seg-type $(SEG_TYPE) \
 			--model-size $$size \
-			--eval-file 717_ecog_both_spec.pkl; \
+			--eval-file 717_ecog_all_spec.pkl; \
 	done; \
 
 

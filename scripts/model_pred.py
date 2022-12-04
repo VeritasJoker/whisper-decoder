@@ -95,7 +95,7 @@ def main():
     if "audio" in args.eval_file:
         data_dict = {"input_features":data_pkl["audio_specs"],"labels":labels}
     else:
-        data_dict = {"input_features":data_pkl["ecog_specs"],"labels":labels.token_ids.tolist()}
+        data_dict = {"input_features":data_pkl["ecog_specs"],"labels":labels}
     
     data = Dataset.from_dict(data_dict)
     data_all = data.train_test_split(test_size=args.data_split, shuffle=False)
