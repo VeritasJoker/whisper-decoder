@@ -112,6 +112,7 @@ def main():
     # sample = "podcast_segment_5099-characteristic.wav"
 
     model, processor, _ = load_whisper_model("tiny")
+    breakpoint()
     result = transcribe_audio(model, processor, os.path.join(data_dir, sample))
     print(result)
 

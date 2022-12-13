@@ -8,7 +8,7 @@ from datasets import Dataset
 from transformers import Seq2SeqTrainer, Seq2SeqTrainingArguments
 
 from utils import load_pickle
-from model_inference import load_whisper_model
+from model_inference import load_whisper_model, load_whisper_model_by_path
 from model_config import parse_arguments, write_model_config
 from model_train import model_tokenize, DataCollatorSpeechSeq2SeqWithPadding
 
@@ -85,30 +85,37 @@ def main():
     args = parse_arguments()
 
     global model, processor, tokenizer, metric  # global variables
-    model, processor, tokenizer = load_whisper_model(args.model_size)
-    metric = evaluate.load("./metrics/wer")
+    if args.eval_model != "":
+        model, processor, tokenizer = load_whisper_model_by_path(
+            f"./models/cer/{args.eval_model}", 1000
+        )
+    else:
+        model, processor, tokenizer = load_whisper_model(args.model_size)
+    metric = evaluate.load("./metrics/cer")
 
     print("Loading data")
     data_pkl = load_pickle(os.path.join(args.data_dir, args.eval_file))
     labels = model_tokenize(data_pkl["label"], tokenizer)
 
     if "audio" in args.eval_file:
-        data_dict = {"input_features":data_pkl["audio_specs"],"labels":labels}
+        data_dict = {"input_features": data_pkl["audio_specs"], "labels": labels}
     else:
-        data_dict = {"input_features":data_pkl["ecog_specs"],"labels":labels}
-    
+        data_dict = {"input_features": data_pkl["ecog_specs"], "labels": labels}
+
     data = Dataset.from_dict(data_dict)
     data_all = data.train_test_split(test_size=args.data_split, shuffle=False)
-    
+
     trainer, _ = get_trainer_for_eval(args, data_all)
 
     print("Doing predictions")
     preds = trainer.predict(test_dataset=data)
     results = tokenizer.batch_decode(preds.predictions, skip_special_tokens=True)
 
-    results = pd.DataFrame(results, columns = [f"{args.model_size}_preds"])
+    results = pd.DataFrame(results, columns=[f"{args.model_size}_preds"])
 
-    results.to_csv(f"results/{args.eval_file[:-9]}_{args.model_size}.csv", index=False)
+    results.to_csv(
+        f"results/{args.eval_file[:-9]}_{args.model_size}_ft.csv", index=False
+    )
 
     return None
 

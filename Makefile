@@ -17,8 +17,9 @@ DATUM := 777_full_labels.pkl
 
 ############### Segmentation Params ###############
 # segmenting word or word + context
-SEG_TYPE := word_ctx
 SEG_TYPE := word
+SEG_TYPE := sentence
+SEG_TYPE := chunk
 
 ############### Spectrogram Params ###############
 SAMPLE_RATE := 16000
@@ -26,7 +27,6 @@ CHUNK_LEN := 30
 N_FFT := 400
 N_MEL := 80
 AUDIO_HOP_LEN := 160
-ECOG_HOP_LEN := 10
 
 
 # Choose the command to run: python runs locally, echo is for debugging, sbatch
@@ -92,14 +92,27 @@ spec-audio:
 ##########################################################
 
 # electrode list
+SID := 717
 %-ecog: E_LIST := $(shell seq 1 255) # 717
+SID := 742
+%-ecog: E_LIST :=  $(shell seq 1 175) # 742
+SID := 798
+%-ecog: E_LIST :=  $(shell seq 1 195) # 798
+
+# %-ecog: E_LIST :=  $(shell seq 1 115) # 661
+# %-ecog: E_LIST :=  $(shell seq 1 100) # 662
+# %-ecog: E_LIST :=  $(shell seq 1 165) # 723
+# %-ecog: E_LIST :=  $(shell seq 1 130) # 741
+# %-ecog: E_LIST :=  $(shell seq 1 125) # 743
+# %-ecog: E_LIST :=  $(shell seq 1 80) # 763
 
 # electrode type (ifg, stg, both, all)
-%-ecog: E_TYPE := all
+%-ecog: E_TYPE := stg
 
 # ecog paramters
 %-ecog: ONSET_SHIFT := 300
 %-ecog: WINDOW_SIZE := 625
+%-ecog: ECOG_HOP_LEN := 10
 
 # prepare ecog data (both segmentation and spectrogram)
 prepare-ecog:
@@ -159,13 +172,13 @@ spec-ecog:
 %-model: MODEL_SIZE := tiny base small medium
 
 # electrode type {ifg, stg, both, all}
-%-model: ELEC_TYPE := ifg
+%-model: ELEC_TYPE := stg
 
 # ecog type {raw, gan}
 %-model: ECOG_TYPE := raw
 
 # data split (test percentage)
-%-model: DATA_SPLIT = 0.05
+%-model: DATA_SPLIT = 0.1
 
 
 train-model:
@@ -209,12 +222,13 @@ test-model:
 
 
 pred-model:
-	python scripts/model_pred.py \
+	$(CMD) scripts/model_pred.py \
 		--project-id $(PRJCT_ID) \
 		--sid $(SID) \
 		--seg-type $(SEG_TYPE) \
 		--model-size $(MODEL_SIZE) \
-		--eval-file audio_spec.pkl; \
+		--eval-file 717_ecog_all_spec.pkl \
+		--eval-model whisper-tiny-717-all-raw-word-test0.05; \
 
 
 pred-all-model:
@@ -224,7 +238,7 @@ pred-all-model:
 			--sid $(SID) \
 			--seg-type $(SEG_TYPE) \
 			--model-size $$size \
-			--eval-file 717_ecog_all_spec.pkl; \
+			--eval-file audio_spec.pkl; \
 	done; \
 
 

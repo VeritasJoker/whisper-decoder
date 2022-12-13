@@ -4,6 +4,7 @@ import pickle
 import pandas as pd
 import numpy as np
 import torch
+import string
 import evaluate
 from transformers import Seq2SeqTrainer, Seq2SeqTrainingArguments
 from dataclasses import dataclass
@@ -15,15 +16,22 @@ from model_inference import load_whisper_model
 from model_config import parse_arguments, write_model_config
 
 
-def model_tokenize(labels, tokenizer):
+def model_tokenize_word(labels, tokenizer):
 
     labels = pd.DataFrame(labels)
-    labels = labels.rename(columns={0:"label"})
-    # labels["tokens"] = labels.label.apply(tokenizer.tokenize)
-    labels["token_ids"] = labels.label.apply(tokenizer.encode)
+    labels = labels.rename(columns={0: "label"})
+    labels["label_lower"] = labels.label.str.lower()  # lower case
+    labels["token_ids"] = labels.label_lower.apply(tokenizer.encode)  # tokenize
 
-    return labels.token_ids.tolist()
+    puncs = []
+    for punc in string.punctuation:  # 1-by-1 (weird interactions if not)
+        puncs = puncs + tokenizer.encode(punc)[2:-1]  # tokenize punctuation
 
+    labels["token_ids_nopunc"] = labels.token_ids.apply(
+        lambda x: [token for token in x if token not in puncs]
+    )  # get rid of punctuations
+
+    return labels.token_ids_nopunc.tolist()
 
 
 @dataclass
@@ -62,23 +70,55 @@ class DataCollatorSpeechSeq2SeqWithPadding:
         return batch
 
 
-def compute_metrics(pred):
+def remove_punc(input_str):
+    for character in string.punctuation:
+        input_str = input_str.replace(character, "")
+    return input_str.lower()
+
+
+def get_first_word(sentence):
+
+    if len(sentence) > 0:
+        first_word = sentence.split()[0]  # get first word
+    else:
+        return sentence  # empty prediction
+    first_word = remove_punc(first_word)
+
+    return first_word
+
+
+def compute_metric(pred):
     pred_ids = pred.predictions
     label_ids = pred.label_ids
 
     # replace -100 with the pad_token_id
     label_ids[label_ids == -100] = tokenizer.pad_token_id
 
-    # we do not want to group tokens when computing the metrics
     pred_str = tokenizer.batch_decode(pred_ids, skip_special_tokens=True)
     label_str = tokenizer.batch_decode(label_ids, skip_special_tokens=True)
 
-    pred_str = [label.lower() for label in pred_str]
-    label_str = [label.lower() for label in label_str]
+    metric_num = metric.compute(predictions=pred_str, references=label_str)
 
-    wer = 100 * metric.compute(predictions=pred_str, references=label_str)
+    return {"metric": metric_num}
 
-    return {"wer": wer}
+
+def compute_metric_word(pred):
+    pred_ids = pred.predictions
+    label_ids = pred.label_ids
+
+    # replace -100 with the pad_token_id
+    label_ids[label_ids == -100] = tokenizer.pad_token_id
+
+    pred_str = tokenizer.batch_decode(pred_ids, skip_special_tokens=True)
+    label_str = tokenizer.batch_decode(label_ids, skip_special_tokens=True)
+
+    # make it word level, remove punc, and lowercase
+    pred_str = [get_first_word(pred) for pred in pred_str]
+    label_str = [get_first_word(label) for label in label_str]
+
+    metric_num = metric.compute(predictions=pred_str, references=label_str)
+
+    return {"metric": metric_num}
 
 
 # def prepare_dataset(batch):
@@ -94,23 +134,23 @@ def get_trainer(args, data_all):
     data_collator = DataCollatorSpeechSeq2SeqWithPadding(processor=processor)
 
     training_args = Seq2SeqTrainingArguments(
-        output_dir=f"./models/{args.saving_dir}",
+        output_dir=f"./models/cer/{args.saving_dir}",
         per_device_train_batch_size=16,
         gradient_accumulation_steps=1,
         learning_rate=1e-5,
-        warmup_steps=500,
-        max_steps=5000,
+        warmup_steps=200,
+        max_steps=1000,
         gradient_checkpointing=True,
         fp16=False,
         evaluation_strategy="steps",
         per_device_eval_batch_size=8,
         predict_with_generate=True,
         generation_max_length=225,
-        save_steps=1000,
-        eval_steps=1000,
-        logging_steps=25,
+        save_steps=20,
+        eval_steps=10,
+        logging_steps=10,
         load_best_model_at_end=True,
-        metric_for_best_model="wer",
+        metric_for_best_model="metric",
         greater_is_better=False,
         push_to_hub=False,
     )
@@ -121,13 +161,11 @@ def get_trainer(args, data_all):
         train_dataset=data_all["train"],
         eval_dataset=data_all["test"],
         data_collator=data_collator,
-        compute_metrics=compute_metrics,
+        compute_metrics=compute_metric_word,
         tokenizer=processor.tokenizer,
     )
 
     return trainer, training_args
-
-
 
 
 def main():
@@ -137,18 +175,20 @@ def main():
 
     write_model_config(vars(args))
 
+    print("Load model / metric")
     global model, processor, tokenizer, metric  # global variables
     model, processor, tokenizer = load_whisper_model(args.model_size)
 
     # model.config.forced_decoder_ids = None  # not sure if we need these
-    # model.config.suppress_tokens = []
-    metric = evaluate.load("./metrics/wer")
+    model.config.suppress_tokens = []
+    metric = evaluate.load("./metrics/cer")
 
+    print("Prepare data")
     ecog_pkl = load_pickle(args.datafile)
-    labels = model_tokenize(ecog_pkl["label"])
-    ecog_data = {"input_features":ecog_pkl["ecog_specs"],"labels":labels}
-    ecog_data = Dataset.from_dict(ecog_pkl)
-    
+    labels = model_tokenize_word(ecog_pkl["label"], tokenizer)
+    ecog_data = {"input_features": ecog_pkl["ecog_specs"], "labels": labels}
+    ecog_data = Dataset.from_dict(ecog_data)
+
     # Split train / test
     # 8/2 split: train_size = 4029, test_size = 1008
     # 9/1 split: train_size = 4533, test_size = 504
