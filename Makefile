@@ -94,10 +94,10 @@ spec-audio:
 # electrode list
 SID := 717
 %-ecog: E_LIST := $(shell seq 1 255) # 717
-SID := 742
-%-ecog: E_LIST :=  $(shell seq 1 175) # 742
-SID := 798
-%-ecog: E_LIST :=  $(shell seq 1 195) # 798
+# SID := 742
+# %-ecog: E_LIST :=  $(shell seq 1 175) # 742
+# SID := 798
+# %-ecog: E_LIST :=  $(shell seq 1 195) # 798
 
 # %-ecog: E_LIST :=  $(shell seq 1 115) # 661
 # %-ecog: E_LIST :=  $(shell seq 1 100) # 662
@@ -107,12 +107,14 @@ SID := 798
 # %-ecog: E_LIST :=  $(shell seq 1 80) # 763
 
 # electrode type (ifg, stg, both, all)
-%-ecog: E_TYPE := stg
+%-ecog: E_TYPE := ifg stg both all
 
 # ecog paramters
 %-ecog: ONSET_SHIFT := 300
 %-ecog: WINDOW_SIZE := 625
-%-ecog: ECOG_HOP_LEN := 10
+
+%-ecog: ECOG_WINDOW_LEN := 25
+%-ecog: ECOG_HOP_LEN := 5
 
 # prepare ecog data (both segmentation and spectrogram)
 prepare-ecog:
@@ -124,43 +126,31 @@ prepare-ecog:
 		--elec-type $(E_TYPE) \
 		--seg-type $(SEG_TYPE) \
 		--hop-len $(ECOG_HOP_LEN) \
-		--n-fft $(N_FFT) \
-		--n-mel $(N_MEL) \
-		--onset-shift $(ONSET_SHIFT) \
-		--window-size $(WINDOW_SIZE) \
-		--save-type ecog_spec;\
-
-# # creates segmentations of ecog file
-segment-ecog:
-	python scripts/ecog_main.py \
-		--project-id $(PRJCT_ID) \
-		--sid $(SID) \
-		--datum $(DATUM) \
-		--elecs $(E_LIST) \
-		--elec-type $(E_TYPE) \
-		--seg-type $(SEG_TYPE) \
-		--hop-len $(ECOG_HOP_LEN) \
+		--window-len $(ECOG_WINDOW_LEN) \
 		--n-fft $(N_FFT) \
 		--n-mel $(N_MEL) \
 		--onset-shift $(ONSET_SHIFT) \
 		--window-size $(WINDOW_SIZE) \
 		--save-type ecog;\
 
-# creates spectrograms of ecog file
-spec-ecog:
-	python scripts/ecog_main.py \
-		--project-id $(PRJCT_ID) \
-		--sid $(SID) \
-		--datum $(DATUM) \
-		--elecs $(E_LIST) \
-		--elec-type $(E_TYPE) \
-		--seg-type $(SEG_TYPE) \
-		--hop-len $(ECOG_HOP_LEN) \
-		--n-fft $(N_FFT) \
-		--n-mel $(N_MEL) \
-		--onset-shift $(ONSET_SHIFT) \
-		--window-size $(WINDOW_SIZE) \
-		--save-type spec;\
+prepare-all-ecog:
+	for area in $(E_TYPE); do\
+		$(CMD) scripts/ecog_main.py \
+			--project-id $(PRJCT_ID) \
+			--sid $(SID) \
+			--datum $(DATUM) \
+			--elecs $(E_LIST) \
+			--elec-type $$area \
+			--seg-type $(SEG_TYPE) \
+			--hop-len $(ECOG_HOP_LEN) \
+			--window-len $(ECOG_WINDOW_LEN) \
+			--n-fft $(N_FFT) \
+			--n-mel $(N_MEL) \
+			--onset-shift $(ONSET_SHIFT) \
+			--window-size $(WINDOW_SIZE) \
+			--save-type ecog;\
+	done; \
+
 
 
 ##########################################################
@@ -168,11 +158,13 @@ spec-ecog:
 ##########################################################
 
 # electrode list
-%-model: MODEL_SIZE := tiny
 %-model: MODEL_SIZE := tiny base small medium
+%-model: MODEL_SIZE := tiny
 
 # electrode type {ifg, stg, both, all}
-%-model: ELEC_TYPE := stg
+%-model: ELEC_TYPE := ifg stg both
+%-model: ELEC_TYPE := ifg
+%-model: ELEC_TYPE := ifg stg both all
 
 # ecog type {raw, gan}
 %-model: ECOG_TYPE := raw
@@ -180,33 +172,43 @@ spec-ecog:
 # data split (test percentage)
 %-model: DATA_SPLIT = 0.1
 
+# data split type
+%-model: DATA_SPLIT_TYPE = train2-test1
+%-model: DATA_SPLIT_TYPE = train2.9-test0.1
+%-model: DATA_SPLIT_TYPE = train2-test0.1
+%-model: DATA_SPLIT_TYPE = train2-test0.1 train2.9-test0.1 train0.9-test0.1 train2-test1 train2.7-test0.3
+%-model: DATA_SPLIT_TYPE = train2.7-test0.3
+%-model: DATA_SPLIT_TYPE = train0.9-test0.1
+
 
 train-model:
-	$(CMD) scripts/model_train.py \
+	python scripts/model_train2.py \
 		--project-id $(PRJCT_ID) \
 		--sid $(SID) \
 		--model-size $(MODEL_SIZE) \
 		--data-split $(DATA_SPLIT) \
+		--data-split-type $(DATA_SPLIT_TYPE) \
 		--elec-type $(ELEC_TYPE) \
 		--ecog-type $(ECOG_TYPE) \
 		--seg-type $(SEG_TYPE) \
-		--saving-dir whisper-$(MODEL_SIZE)-$(SID)-$(ELEC_TYPE)-$(ECOG_TYPE)-$(SEG_TYPE)-test$(DATA_SPLIT); \
+		--saving-dir whisper-$(MODEL_SIZE)-$(SID)-$(ELEC_TYPE)-$(DATA_SPLIT_TYPE)-test$(DATA_SPLIT); \
 
 
-audio-model:
-	$(CMD) scripts/model_audio.py \
-		--project-id $(PRJCT_ID) \
-		--sid $(SID) \
-		--seg-type $(SEG_TYPE) \
-
-
-ecog-model:
-	$(CMD) scripts/model_ecog.py \
-		--project-id $(PRJCT_ID) \
-		--sid $(SID) \
-		--elec-type $(ELEC_TYPE) \
-		--ecog-type $(ECOG_TYPE) \
-		--seg-type $(SEG_TYPE) \
+train-all-model:
+	for elec in $(ELEC_TYPE); do\
+		for splits in $(DATA_SPLIT_TYPE); do\
+			$(CMD) scripts/model_train.py \
+				--project-id $(PRJCT_ID) \
+				--sid $(SID) \
+				--model-size $(MODEL_SIZE) \
+				--data-split $(DATA_SPLIT) \
+				--data-split-type $$splits \
+				--elec-type $$elec \
+				--ecog-type $(ECOG_TYPE) \
+				--seg-type $(SEG_TYPE) \
+				--saving-dir whisper-$(MODEL_SIZE)-$(SID)-$$elec-$(SEG_TYPE)-$$splits-test$(DATA_SPLIT); \
+		done; \
+	done; \
 
 
 test-model:
@@ -238,7 +240,7 @@ pred-all-model:
 			--sid $(SID) \
 			--seg-type $(SEG_TYPE) \
 			--model-size $$size \
-			--eval-file audio_spec.pkl; \
+			--eval-file 717_ecog_all_spec.pkl; \
 	done; \
 
 

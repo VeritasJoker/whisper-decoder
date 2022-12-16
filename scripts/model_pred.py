@@ -9,8 +9,8 @@ from transformers import Seq2SeqTrainer, Seq2SeqTrainingArguments
 
 from utils import load_pickle
 from model_inference import load_whisper_model, load_whisper_model_by_path
-from model_config import parse_arguments, write_model_config
-from model_train import model_tokenize, DataCollatorSpeechSeq2SeqWithPadding
+from model_config import parse_arguments
+from model_train import model_tokenize_word, DataCollatorSpeechSeq2SeqWithPadding
 
 
 def compute_metrics(pred):
@@ -23,9 +23,6 @@ def compute_metrics(pred):
     # we do not want to group tokens when computing the metrics
     pred_str = tokenizer.batch_decode(pred_ids, skip_special_tokens=True)
     label_str = tokenizer.batch_decode(label_ids, skip_special_tokens=True)
-
-    pred_str = [label.lower() for label in pred_str]
-    label_str = [label.lower() for label in label_str]
 
     wer = 100 * metric.compute(predictions=pred_str, references=label_str)
 
@@ -95,7 +92,7 @@ def main():
 
     print("Loading data")
     data_pkl = load_pickle(os.path.join(args.data_dir, args.eval_file))
-    labels = model_tokenize(data_pkl["label"], tokenizer)
+    labels = model_tokenize_word(data_pkl["label"], tokenizer)
 
     if "audio" in args.eval_file:
         data_dict = {"input_features": data_pkl["audio_specs"], "labels": labels}
@@ -114,7 +111,8 @@ def main():
     results = pd.DataFrame(results, columns=[f"{args.model_size}_preds"])
 
     results.to_csv(
-        f"results/{args.eval_file[:-9]}_{args.model_size}_ft.csv", index=False
+        f"results/{args.seg_type}/{args.eval_file[:-9]}_{args.model_size}.csv",
+        index=False,
     )
 
     return None

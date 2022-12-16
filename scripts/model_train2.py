@@ -260,6 +260,7 @@ def prepare_data(args):
                 all_specs_train = all_specs_train + ecog_pkl["ecog_specs"]
                 all_labels_train = all_labels_train + labels
 
+    breakpoint()
     ecog_data_train = {
         "input_features": all_specs_train,
         "labels": all_labels_train,

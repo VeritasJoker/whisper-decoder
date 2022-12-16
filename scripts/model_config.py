@@ -1,6 +1,7 @@
 import argparse
 import os
 import json
+import glob
 
 
 def parse_arguments():
@@ -20,13 +21,17 @@ def parse_arguments():
     parser.add_argument("--ecog-type", type=str, default="all")
     parser.add_argument("--saving-dir", type=str, default=None)
     parser.add_argument("--data-split", type=float, default=0.2)
+    parser.add_argument("--data-split-type", type=str, default="train0.9-test0.1")
     parser.add_argument("--eval-file", type=str, default=None)
     parser.add_argument("--eval-model", type=str, default="")
 
     args = parser.parse_args()
 
     args.data_dir = os.path.join("seg-data", args.project_id, args.seg_type)
-    args.datafile = os.path.join(
+    args.datafiles = glob.glob(
+        os.path.join(args.data_dir, f"*_ecog_{args.elec_type}_spec.pkl")
+    )
+    args.testfile = os.path.join(
         args.data_dir, f"{args.sid}_ecog_{args.elec_type}_spec.pkl"
     )
 

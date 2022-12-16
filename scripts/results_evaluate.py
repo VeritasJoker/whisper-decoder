@@ -10,7 +10,9 @@ from utils import load_pickle
 
 def remove_punc_df(df):
     for column in df.columns:
-        df[column] = df[column].str.replace(r"[^\w\s]+", "", regex=True).str.lower()
+        df[column] = (
+            df[column].str.replace(r"[^\w\s]+", "", regex=True).str.lower()
+        )
     return df
 
 
@@ -26,17 +28,22 @@ def get_single_pred_df(df):
 
 def main():
 
-    metric1 = evaluate.load("./metrics/wer")
-    metric2 = evaluate.load("./metrics/cer")
+    # Parameters
+    seg_type = "chunk"
 
-    results_dir = "./results/words"
-    label_pkl = "./seg-data/podcast/word/audio_spec.pkl"
+    result_type = "audio"
+    result_type = "717_ecog_all"
+
+    # Set up
+    results_dir = f"./results/{seg_type}"
+    os.makedirs(results_dir, exist_ok=True)
+    label_pkl = f"./seg-data/podcast/{seg_type}/{result_type}_spec.pkl"
     labels = load_pickle(label_pkl)
 
-    result_type = "717_ecog_all"
-    result_type = "audio"
-
     files = glob.glob(f"{results_dir}/{result_type}*.csv")
+
+    metric1 = evaluate.load("./metrics/wer")
+    metric2 = evaluate.load("./metrics/cer")
 
     li = []
 
@@ -46,21 +53,32 @@ def main():
 
     df = pd.concat(li, axis=1, ignore_index=False)
     df["label"] = labels["label"]
-    breakpoint()
+
     df = remove_punc_df(df)
-    df = get_single_pred_df(df)
+    if seg_type == "word":
+        df = get_single_pred_df(df)
+
+    train_idx = round(len(df) * (1 - 0.1))  # train/test split
+    df2 = df.loc[train_idx:, :]
+    df2.reset_index(inplace=True)
 
     results_df = pd.DataFrame(columns=["wer", "cer"])
-
     for column in df.columns:
-        if column != "label":
+        if column != "label" and column != "index":
+            column_eval = column + "-eval"
             results_df.loc[column, "wer"] = metric1.compute(
                 predictions=df[column], references=df.label
+            )
+            results_df.loc[column_eval, "wer"] = metric1.compute(
+                predictions=df2[column], references=df2.label
             )
             results_df.loc[column, "cer"] = metric2.compute(
                 predictions=df[column], references=df.label
             )
-    results_df.to_csv(f"./results/words/summary_{result_type}.csv")
+            results_df.loc[column_eval, "cer"] = metric2.compute(
+                predictions=df2[column], references=df2.label
+            )
+    results_df.to_csv(f"./results/{seg_type}/summary_{result_type}.csv")
 
     return
 

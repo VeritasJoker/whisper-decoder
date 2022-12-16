@@ -126,7 +126,10 @@ def log_mel_spectrogram(
 
 
 def brain_spectrogram(
-    audio: Union[str, np.ndarray, torch.Tensor], hop_length, n_mels: int = N_MELS
+    audio: Union[str, np.ndarray, torch.Tensor],
+    window_length,
+    hop_length,
+    n_mels: int = N_MELS,
 ):
     """
     Compute the log-Mel spectrogram of
@@ -146,8 +149,15 @@ def brain_spectrogram(
             audio = load_audio(audio)
         audio = torch.from_numpy(audio)
 
-    window = torch.hann_window(N_FFT).to(audio.device)
-    stft = torch.stft(audio, N_FFT, hop_length, window=window, return_complex=True)
+    # window = torch.hann_window(N_FFT).to(audio.device)
+    stft = torch.stft(
+        audio,
+        N_FFT,
+        hop_length,
+        window=None,
+        win_length=window_length,
+        return_complex=True,
+    )
     magnitudes = stft[:, :-1].abs() ** 2
 
     magnitudes = magnitudes.float()

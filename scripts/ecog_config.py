@@ -24,7 +24,8 @@ def parse_arguments():
     parser.add_argument("--window-size", nargs="?", type=int, default=625)
 
     # args for spectrogram
-    parser.add_argument("--hop-len", nargs="?", type=int, default=10)
+    parser.add_argument("--window-len", nargs="?", type=int, default=25)
+    parser.add_argument("--hop-len", nargs="?", type=int, default=5)
     parser.add_argument("--n-fft", nargs="?", type=int, default=400)
     parser.add_argument("--n-mel", nargs="?", type=int, default=80)
 
@@ -39,8 +40,8 @@ def parse_arguments():
     # n_bins = window_ms // bin_ms
     # n_bins = window_fs // bin_fs
 
-    args.n_frame = 3000
-    args.n_sample = args.n_frame * args.hop_len  # frame num in spectrogram
+    args.n_frame = 3000  # frame num in spectrogram (fixed)
+    args.n_sample = args.n_frame * args.hop_len  # total sample num
 
     return args
 

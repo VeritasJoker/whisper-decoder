@@ -18,19 +18,34 @@ def audio_to_spec(args, audio_file):
     return audio_spec.numpy()
 
 
-def get_chunk_data(df, i, onsetc, offsetc):
+def get_concat_labels(df, onset_idx, offset_idx):
+    label = " ".join(
+        df.loc[onset_idx:offset_idx, "word"].tolist()
+    )  # first word with onset to current word
 
-    offset = df[offsetc][i]  # current offset
-    onset = np.max([df.iloc[0][onsetc], offset - 30])  # temp onset
+    assert label != "", "empty label"
+
+    return label
+
+
+def get_chunk_data(df, i):
+
+    # TODO: Sorted dataframe to check for overlap
+
+    offset = df.audio_offset[i]  # current offset
+    onset = np.max([df.iloc[0]["audio_onset"], offset - 30])  # temp onset
 
     # account for if a word is partially at the start of window
-    onset_idx = df[onsetc].ge(onset).idxmax()  # first word with onset inside window
-    offset_idx = df[offsetc].ge(onset).idxmax()  # first word with offset inside window
+    onset_idx = df.audio_onset.ge(onset).idxmax()  # first word with onset inside window
+    offset_idx = df.audio_offset.ge(
+        onset
+    ).idxmax()  # first word with offset inside window
     if onset_idx > offset_idx:  # if a word partially in window
-        onset = df.loc[offset_idx, offsetc]  # take its offset as onset
-    label = " ".join(
-        df.loc[onset_idx:i, "word"].tolist()
-    )  # first word with onset to current word
+        onset = df.loc[offset_idx, "audio_offset"]  # take its offset as onset
+
+    assert offset - onset <= 30
+
+    label = get_concat_labels(df, onset_idx, i)
 
     return (onset, offset, label)
 
@@ -39,11 +54,12 @@ def split_audio(args):
 
     fs, full_audio = load_audio(args.audio_path)  # load audio file
     df = load_label(args.datum_path)  # load datum
+    df.reset_index(inplace=True)
 
     if args.seg_type != "word":  # new column to store labels
         words = []
     if args.seg_type == "sentence":
-        prev_offset = df.iloc[0]["audio_onset"]
+        prev_offset_idx = df.index[0]
     if "audio" in args.save_type:  # create folder for segment
         os.makedirs(os.path.join(args.result_dir, "audio_segment"), exist_ok=True)
     if "spec" in args.save_type:  # list to store audio specs
@@ -58,11 +74,11 @@ def split_audio(args):
             offset = df.audio_offset[i]
 
         elif args.seg_type == "sentence":
-            if df.word[i][-1] in "!?.":  # end of a sentence
+            if df.word[i][-1] in "!?." or i == len(df.index) - 1:  # end of a sentence
+                onset_idx, prev_offset_idx = prev_offset_idx + 1, i  # shift
+                onset = df.audio_onset[onset_idx]  # onset
                 offset = df.audio_offset[i]  # offset
-                onset, prev_offset = prev_offset, offset  # reset
-                onset_idx = df.audio_onset.ge(onset).idxmax()  # start idx
-                label = " ".join(df.loc[onset_idx:i, "word"].tolist())
+                label = get_concat_labels(df, onset_idx, i)
                 words.append(label)
                 if offset - onset > 30:  # skip long sentence
                     print(label)
@@ -71,9 +87,8 @@ def split_audio(args):
                 continue
 
         elif args.seg_type == "chunk":
-            onset, offset, label = get_chunk_data(df, i, "audio_onset", "audio_offset")
+            onset, offset, label = get_chunk_data(df, i)
             words.append(label)
-            assert offset - onset <= 30
 
         chunk_name = os.path.join(
             args.result_dir, "audio_segment", f"segment_{i:04d}-{df.word[i]}.wav"
@@ -94,7 +109,6 @@ def split_audio(args):
         # df_index = df.index.tolist()
         # index = np.arange(0, len(df.index))
         assert len(words) == len(audio_specs)
-        
         # save spectrogram to pickle
         result = {
             "audio_specs": audio_specs,
