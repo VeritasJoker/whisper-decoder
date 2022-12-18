@@ -88,13 +88,11 @@ def remove_punc(input_str):
 
 def get_first_word(sentence):
 
-    if len(sentence) > 0:
+    if len(sentence.split()) > 0:
         first_word = sentence.split()[0]  # get first word
+        return first_word
     else:
         return sentence  # empty prediction
-    first_word = remove_punc(first_word)
-
-    return first_word
 
 
 def compute_metric(pred):
@@ -109,29 +107,14 @@ def compute_metric(pred):
 
     pred_str = [remove_punc(pred) for pred in pred_str]
     label_str = [remove_punc(label) for label in label_str]
+    wer = metric_wer.compute(predictions=pred_str, references=label_str)
+    cer = metric_cer.compute(predictions=pred_str, references=label_str)
 
-    metric_num = metric.compute(predictions=pred_str, references=label_str)
-
-    return {"metric": metric_num}
-
-
-def compute_metric_word(pred):
-    pred_ids = pred.predictions
-    label_ids = pred.label_ids
-
-    # replace -100 with the pad_token_id
-    label_ids[label_ids == -100] = tokenizer.pad_token_id
-
-    pred_str = tokenizer.batch_decode(pred_ids, skip_special_tokens=True)
-    label_str = tokenizer.batch_decode(label_ids, skip_special_tokens=True)
-
-    # make it word level, remove punc, and lowercase
     pred_str = [get_first_word(pred) for pred in pred_str]
     label_str = [get_first_word(label) for label in label_str]
+    first_cer = metric_cer.compute(predictions=pred_str, references=label_str)
 
-    metric_num = metric.compute(predictions=pred_str, references=label_str)
-
-    return {"metric": metric_num}
+    return {"wer": wer, "cer": cer, "fisrt_cer": first_cer}
 
 
 # def prepare_dataset(batch):
@@ -146,11 +129,6 @@ def get_trainer(args, data_all):
 
     data_collator = DataCollatorSpeechSeq2SeqWithPadding(processor=processor)
 
-    if args.seg_type == "word":
-        metric_func = compute_metric_word
-    else:
-        metric_func = compute_metric
-
     training_args = Seq2SeqTrainingArguments(
         output_dir=f"./models/{args.saving_dir}",
         per_device_train_batch_size=16,
@@ -164,12 +142,13 @@ def get_trainer(args, data_all):
         per_device_eval_batch_size=8,
         predict_with_generate=True,
         generation_max_length=225,
+        generation_num_beams=3,
         save_strategy="no",
-        # save_steps=100,
-        eval_steps=100,
-        logging_steps=50,
+        save_steps=5000,
+        eval_steps=20,
+        logging_steps=100,
         # load_best_model_at_end=True,
-        # metric_for_best_model="metric",
+        # metric_for_best_model="eval_loss",
         # greater_is_better=False,
         push_to_hub=False,
     )
@@ -180,7 +159,7 @@ def get_trainer(args, data_all):
         train_dataset=data_all["train"],
         eval_dataset=data_all["test"],
         data_collator=data_collator,
-        compute_metrics=metric_func,
+        compute_metrics=compute_metric,
         tokenizer=processor.tokenizer,
     )
 
@@ -203,18 +182,14 @@ def prepare_data(args):
         train_idx = round(
             len(labels) * (1 - args.data_split)
         )  # train/test split
-        if (
-            args.data_split_type == "train2.7-test0.3"
-        ):  # train/test on all 3 patients
+        if args.data_split_type == "2.7-0.3":  # train/test on all 3 patients
             all_specs_train = (
                 all_specs_train + ecog_pkl["ecog_specs"][0:train_idx]
             )
             all_specs_test = all_specs_test + ecog_pkl["ecog_specs"][train_idx:]
             all_labels_train = all_labels_train + labels[0:train_idx]
             all_labels_test = all_labels_test + labels[train_idx:]
-        elif (
-            args.data_split_type == "train0.9-test0.1"
-        ):  # train/test on 1 patient
+        elif args.data_split_type == "0.9-0.1":  # train/test on 1 patient
             if pkl == args.testfile:
                 all_specs_train = (
                     all_specs_train + ecog_pkl["ecog_specs"][0:train_idx]
@@ -224,9 +199,7 @@ def prepare_data(args):
                 )
                 all_labels_train = all_labels_train + labels[0:train_idx]
                 all_labels_test = all_labels_test + labels[train_idx:]
-        elif (
-            args.data_split_type == "train2.9-test0.1"
-        ):  # train on 2.9, test 0.1
+        elif args.data_split_type == "2.9-0.1":  # train on 2.9, test 0.1
             if pkl == args.testfile:
                 all_specs_train = (
                     all_specs_train + ecog_pkl["ecog_specs"][0:train_idx]
@@ -239,9 +212,7 @@ def prepare_data(args):
             else:
                 all_specs_train = all_specs_train + ecog_pkl["ecog_specs"]
                 all_labels_train = all_labels_train + labels
-        elif (
-            args.data_split_type == "train2-test0.1"
-        ):  # train on 2, test on 0.1
+        elif args.data_split_type == "2-0.1":  # train on 2, test on 0.1
             if pkl == args.testfile:
                 all_specs_test = (
                     all_specs_test + ecog_pkl["ecog_specs"][train_idx:]
@@ -250,9 +221,7 @@ def prepare_data(args):
             else:
                 all_specs_train = all_specs_train + ecog_pkl["ecog_specs"]
                 all_labels_train = all_labels_train + labels
-        elif (
-            args.data_split_type == "train2-test1"
-        ):  # train on 2 patients, test on 1
+        elif args.data_split_type == "2-1":  # train on 2 patients, test on 1
             if pkl == args.testfile:
                 all_specs_test = all_specs_test + ecog_pkl["ecog_specs"]
                 all_labels_test = all_labels_test + labels
@@ -285,15 +254,14 @@ def main():
     write_model_config(vars(args))
 
     print("Load model / metric")
-    global model, processor, tokenizer, metric  # global variables
+    global model, processor, tokenizer, metric_cer, metric_wer, seg_type  # global variables
     model, processor, tokenizer = load_whisper_model(args.model_size)
 
     # model.config.forced_decoder_ids = None  # not sure if we need these
     model.config.suppress_tokens = []
-    if args.seg_type == "word":
-        metric = evaluate.load("./metrics/cer")
-    else:
-        metric = evaluate.load("./metrics/wer")
+    metric_cer = evaluate.load("./metrics/cer")
+    metric_wer = evaluate.load("./metrics/wer")
+    seg_type = args.seg_type
 
     data_all = prepare_data(args)
 

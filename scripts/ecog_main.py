@@ -45,9 +45,7 @@ def get_elec_data(args):
     ecogs = []
 
     for i in args.elecs:
-        filename = (
-            f"NY{args.sid}_111_Part1_conversation1_electrode_preprocess_file_{i}.mat"
-        )
+        filename = f"NY{args.sid}_111_Part1_conversation1_electrode_preprocess_file_{i}.mat"
 
         elec_file = os.path.join(args.ecog_path, filename)
         try:
@@ -65,10 +63,14 @@ def get_chunk_data(df, i, args):
     # TODO: Sorted dataframe to check for overlap
 
     offset = df.brain_offset[i]  # current offset
-    onset = np.max([df.iloc[0]["brain_onset"], offset - args.n_sample])  # temp onset
+    onset = np.max(
+        [df.iloc[0]["brain_onset"], offset - args.n_sample]
+    )  # temp onset
 
     # account for if a word is partially at the start of window
-    onset_idx = df.brain_onset.ge(onset).idxmax()  # first word with onset inside window
+    onset_idx = df.brain_onset.ge(
+        onset
+    ).idxmax()  # first word with onset inside window
     offset_idx = df.brain_offset.ge(
         onset
     ).idxmax()  # first word with offset inside window
@@ -106,7 +108,9 @@ def split_ecog(args):
             offset = int(df.brain_offset[i]) + args.shift_fs
 
         elif args.seg_type == "sentence":
-            if df.word[i][-1] in "!?." or i == len(df.index) - 1:  # end of a sentence
+            if (
+                df.word[i][-1] in "!?." or i == len(df.index) - 1
+            ):  # end of a sentence
                 onset_idx, prev_offset_idx = prev_offset_idx + 1, i  # shift
                 onset = int(df.brain_onset[onset_idx]) + args.shift_fs  # onset
                 offset = int(df.brain_offset[i]) + args.shift_fs  # offset
@@ -150,7 +154,9 @@ def split_ecog(args):
         # "index": index,
         # "df_index": df_index,
     }
-    pkl_dir = os.path.join(args.result_dir, f"{args.sid}_ecog_{args.elec_type}_spec")
+    pkl_dir = os.path.join(
+        args.result_dir, f"{args.sid}_ecog_{args.elec_type}_{args.onset_shift}_spec"
+    )
     save_pickle(result, pkl_dir)
     return None
 

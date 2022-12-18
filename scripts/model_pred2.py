@@ -93,13 +93,10 @@ def main():
     metric = evaluate.load("./metrics/cer")
 
     print("Loading data")
-    data_pkl = load_pickle(os.path.join(args.data_dir, args.eval_file))
-    labels = model_tokenize_word(data_pkl["label"], tokenizer)
+    data_pkl = load_pickle("spec_reg/brain_to_audio.pkl")
+    labels = model_tokenize_word(data_pkl["word"], tokenizer)
 
-    if "audio" in args.eval_file:
-        data_dict = {"input_features": data_pkl["audio_specs"], "labels": labels}
-    else:
-        data_dict = {"input_features": data_pkl["ecog_specs"], "labels": labels}
+    data_dict = {"input_features": data_pkl["brain_to_audio_spec"], "labels": labels}
 
     data = Dataset.from_dict(data_dict)
     data_all = data.train_test_split(test_size=args.data_split, shuffle=False)

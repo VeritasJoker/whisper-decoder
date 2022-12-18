@@ -10,9 +10,7 @@ from utils import load_pickle
 
 def remove_punc_df(df):
     for column in df.columns:
-        df[column] = (
-            df[column].str.replace(r"[^\w\s]+", "", regex=True).str.lower()
-        )
+        df[column] = df[column].str.replace(r"[^\w\s]+", "", regex=True).str.lower()
     return df
 
 
@@ -26,21 +24,14 @@ def get_single_pred_df(df):
     return df
 
 
-def main():
-
-    # Parameters
-    seg_type = "chunk"
-
-    result_type = "audio"
-    result_type = "717_ecog_all"
-
+def res_evaluate(seg_type, result_type):
     # Set up
     results_dir = f"./results/{seg_type}"
     os.makedirs(results_dir, exist_ok=True)
     label_pkl = f"./seg-data/podcast/{seg_type}/{result_type}_spec.pkl"
     labels = load_pickle(label_pkl)
 
-    files = glob.glob(f"{results_dir}/{result_type}*.csv")
+    files = glob.glob(f"{results_dir}/{result_type}_tiny.csv")
 
     metric1 = evaluate.load("./metrics/wer")
     metric2 = evaluate.load("./metrics/cer")
@@ -79,6 +70,37 @@ def main():
                 predictions=df2[column], references=df2.label
             )
     results_df.to_csv(f"./results/{seg_type}/summary_{result_type}.csv")
+
+
+def main():
+
+    # Parameters
+    seg_types = ["chunk", "sentence"]
+
+    result_type = "audio"
+    result_type = "717_ecog_ifg"
+    result_types = [
+        "742_ecog_ifg",
+        "742_ecog_stg",
+        "742_ecog_both",
+        "742_ecog_all",
+        "742_ecog_ifg_0",
+        "742_ecog_stg_0",
+        "742_ecog_both_0",
+        "742_ecog_all_0",
+        "798_ecog_ifg",
+        "798_ecog_stg",
+        "798_ecog_both",
+        "798_ecog_all",
+        "798_ecog_ifg_0",
+        "798_ecog_stg_0",
+        "798_ecog_both_0",
+        "798_ecog_all_0",
+    ]
+
+    for seg_type in seg_types:
+        for result_type in result_types:
+            res_evaluate(seg_type, result_type)
 
     return
 

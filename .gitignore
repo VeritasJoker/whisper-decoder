@@ -1,8 +1,8 @@
 logs
+logs-summary
 data
 results
 models
 seg-data
-spec-data
+spec_reg
 __pycache__
-whisper-*

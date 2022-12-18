@@ -17,9 +17,10 @@ DATUM := 777_full_labels.pkl
 
 ############### Segmentation Params ###############
 # segmenting word or word + context
-SEG_TYPE := word
-SEG_TYPE := sentence
 SEG_TYPE := chunk
+SEG_TYPE := sentence
+SEG_TYPE := word
+SEG_TYPE := word chunk sentence
 
 ############### Spectrogram Params ###############
 SAMPLE_RATE := 16000
@@ -92,12 +93,12 @@ spec-audio:
 ##########################################################
 
 # electrode list
-SID := 717
+%-ecog: SID := 717
 %-ecog: E_LIST := $(shell seq 1 255) # 717
-# SID := 742
-# %-ecog: E_LIST :=  $(shell seq 1 175) # 742
-# SID := 798
-# %-ecog: E_LIST :=  $(shell seq 1 195) # 798
+%-ecog: SID := 742
+%-ecog: E_LIST :=  $(shell seq 1 175) # 742
+%-ecog: SID := 798
+%-ecog: E_LIST :=  $(shell seq 1 195) # 798
 
 # %-ecog: E_LIST :=  $(shell seq 1 115) # 661
 # %-ecog: E_LIST :=  $(shell seq 1 100) # 662
@@ -157,38 +158,46 @@ prepare-all-ecog:
 ######################### MODEL ##########################
 ##########################################################
 
+# subject
+%-model: SID := 742
+%-model: SID := 798
+%-model: SID := 717 742 798
+%-model: SID := 717
+
 # electrode list
 %-model: MODEL_SIZE := tiny base small medium
 %-model: MODEL_SIZE := tiny
 
 # electrode type {ifg, stg, both, all}
 %-model: ELEC_TYPE := ifg stg both
-%-model: ELEC_TYPE := ifg
 %-model: ELEC_TYPE := ifg stg both all
+%-model: ELEC_TYPE := ifg
 
 # ecog type {raw, gan}
 %-model: ECOG_TYPE := raw
+%-model: ONSET_SHIFT := 300
 
 # data split (test percentage)
 %-model: DATA_SPLIT = 0.1
 
 # data split type
-%-model: DATA_SPLIT_TYPE = train2-test1
-%-model: DATA_SPLIT_TYPE = train2.9-test0.1
-%-model: DATA_SPLIT_TYPE = train2-test0.1
-%-model: DATA_SPLIT_TYPE = train2-test0.1 train2.9-test0.1 train0.9-test0.1 train2-test1 train2.7-test0.3
-%-model: DATA_SPLIT_TYPE = train2.7-test0.3
-%-model: DATA_SPLIT_TYPE = train0.9-test0.1
+%-model: DATA_SPLIT_TYPE = 2-0.1
+%-model: DATA_SPLIT_TYPE = 2.9-0.1
+%-model: DATA_SPLIT_TYPE = 2-0.1 2.9-0.1 0.9-0.1 2-1 2.7-0.3
+%-model: DATA_SPLIT_TYPE = 2.7-0.3
+%-model: DATA_SPLIT_TYPE = 2-1
+%-model: DATA_SPLIT_TYPE = 0.9-0.1
 
 
 train-model:
-	python scripts/model_train2.py \
+	$(CMD) scripts/model_train2.py \
 		--project-id $(PRJCT_ID) \
 		--sid $(SID) \
 		--model-size $(MODEL_SIZE) \
 		--data-split $(DATA_SPLIT) \
 		--data-split-type $(DATA_SPLIT_TYPE) \
 		--elec-type $(ELEC_TYPE) \
+		--onset-shift $(ONSET_SHIFT) \
 		--ecog-type $(ECOG_TYPE) \
 		--seg-type $(SEG_TYPE) \
 		--saving-dir whisper-$(MODEL_SIZE)-$(SID)-$(ELEC_TYPE)-$(DATA_SPLIT_TYPE)-test$(DATA_SPLIT); \
@@ -196,17 +205,18 @@ train-model:
 
 train-all-model:
 	for elec in $(ELEC_TYPE); do\
-		for splits in $(DATA_SPLIT_TYPE); do\
+		for subject in $(SID); do\
 			$(CMD) scripts/model_train.py \
 				--project-id $(PRJCT_ID) \
-				--sid $(SID) \
+				--sid $$subject \
 				--model-size $(MODEL_SIZE) \
 				--data-split $(DATA_SPLIT) \
-				--data-split-type $$splits \
+				--data-split-type $(DATA_SPLIT_TYPE) \
 				--elec-type $$elec \
+				--onset-shift $(ONSET_SHIFT) \
 				--ecog-type $(ECOG_TYPE) \
 				--seg-type $(SEG_TYPE) \
-				--saving-dir whisper-$(MODEL_SIZE)-$(SID)-$$elec-$(SEG_TYPE)-$$splits-test$(DATA_SPLIT); \
+				--saving-dir whisper-$(MODEL_SIZE)-$$subject-$$elec-$(SEG_TYPE)-$(DATA_SPLIT_TYPE)-$(ONSET_SHIFT)-test$(DATA_SPLIT); \
 		done; \
 	done; \
 
@@ -224,23 +234,22 @@ test-model:
 
 
 pred-model:
-	$(CMD) scripts/model_pred.py \
+	python scripts/model_pred.py \
 		--project-id $(PRJCT_ID) \
 		--sid $(SID) \
 		--seg-type $(SEG_TYPE) \
 		--model-size $(MODEL_SIZE) \
-		--eval-file 717_ecog_all_spec.pkl \
-		--eval-model whisper-tiny-717-all-raw-word-test0.05; \
+		--eval-file 717_ecog_ifg_0_spec.pkl; \
 
 
 pred-all-model:
-	for size in $(MODEL_SIZE); do\
+	for seg in $(SEG_TYPE); do\
 		$(CMD) scripts/model_pred.py \
 			--project-id $(PRJCT_ID) \
 			--sid $(SID) \
-			--seg-type $(SEG_TYPE) \
-			--model-size $$size \
-			--eval-file 717_ecog_all_spec.pkl; \
+			--seg-type $$seg \
+			--model-size $(MODEL_SIZE) \
+			--eval-file 742_ecog_all_spec.pkl; \
 	done; \
 
 
