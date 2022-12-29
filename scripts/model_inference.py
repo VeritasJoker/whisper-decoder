@@ -28,7 +28,9 @@ def load_whisper_model(model_size):
         return_dict=True,
     )
     processor = WhisperProcessor.from_pretrained(model_fullname)
-    tokenizer = WhisperTokenizer.from_pretrained(model_fullname)
+    tokenizer = WhisperTokenizer.from_pretrained(
+        model_fullname, add_prefix_space=True, predict_timestamps=True
+    )
 
     return model, processor, tokenizer
 
